@@ -1,18 +1,18 @@
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { Product } from "../models/product.model.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import mongoose, {isValidObjectId} from "mongoose"
+import mongoose, { isValidObjectId } from "mongoose"
 
 
 const addProduct = asyncHandler(async (req, res) => {
 
-    const { CategoryName, ProductName, description } = req.body
+    const { CategoryName, ProductName } = req.body
     // console.log("email: ", email)
 
     if (
-        [CategoryName, ProductName, description].some((field) => field?.trim() === "")
+        [CategoryName, ProductName].some((field) => field?.trim() === "")
     ) {
         throw new ApiError(400, "All field are required")
     }
@@ -33,9 +33,10 @@ const addProduct = asyncHandler(async (req, res) => {
     const product = await Product.create({
         CategoryName,
         ProductName,
-        img: productImg.url,
-        description
-
+        img: {
+            url: productImg.url,
+            public_id: productImg.public_id
+        }
     })
 
     return res.status(201).json(
@@ -67,13 +68,13 @@ const getProduct = asyncHandler(async (req, res) => {
 const updateProductDetails = asyncHandler(async (req, res) => {
 
     const { productId } = req.params
-    const { CategoryName, ProductName, description } = req.body;
+    const { CategoryName, ProductName } = req.body;
 
     if (!isValidObjectId(productId)) {
         throw new ApiError(400, "Invalid productId");
     }
 
-    if (!(CategoryName && ProductName && description)) {
+    if (!(CategoryName && ProductName)) {
         throw new ApiError(400, "CategoryName, ProductName and description are required");
     }
 
@@ -82,17 +83,18 @@ const updateProductDetails = asyncHandler(async (req, res) => {
     if (!product) {
         throw new ApiError(404, "No product found");
     }
-    
 
+    // deleting old img and updating with new one
+    const imgToDelete = product.img.public_id
     const productImgLocalPath = req.file?.path;
 
     if (!productImgLocalPath) {
         throw new ApiError(400, "product image is required");
     }
 
-    const img = await uploadOnCloudinary(productImgLocalPath);
+    const productImg = await uploadOnCloudinary(productImgLocalPath);
 
-    if (!img) {
+    if (!productImg) {
         throw new ApiError(400, "product image not found");
     }
 
@@ -103,8 +105,10 @@ const updateProductDetails = asyncHandler(async (req, res) => {
             $set: {
                 CategoryName,
                 ProductName,
-                description,
-                img: img.url
+                img: {
+                    public_id: productImg.public_id,
+                    url: productImg.url
+                }
             }
         },
         { new: true }
@@ -112,6 +116,10 @@ const updateProductDetails = asyncHandler(async (req, res) => {
 
     if (!updateProduct) {
         throw new ApiError(500, "Failed to update product please try again");
+    }
+
+    if (updateProduct) {
+        await deleteOnCloudinary(imgToDelete);
     }
 
     return res
@@ -129,16 +137,19 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
     const product = await Product.findById(productId);
 
+
     if (!product) {
         throw new ApiError(404, "No product found");
     }
-    
+
 
     const deleteProduct = await Product.findByIdAndDelete(productId);
 
     if (!deleteProduct) {
         throw new ApiError(500, "Failed to delete product please try again");
     }
+
+    await deleteOnCloudinary(product.img.public_id);
 
     return res
         .status(200)

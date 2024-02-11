@@ -11,12 +11,11 @@ const productSchema = new Schema ({
         required : true
     },
     img:{
-        type: String,  // cloudinary url
+        type: {
+            url: String,
+            public_id: String,
+        },  // cloudinary url
         required:true
-    },
-    description: {
-        type : String,
-        required : true
     }
 })
 
