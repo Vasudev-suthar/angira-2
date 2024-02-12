@@ -156,11 +156,36 @@ const deleteProduct = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, deleteProduct, "Product deleted successfully"));
 })
 
+const searchProduct = asyncHandler(async(req, res) => {
 
+    const products = await Product.find({
+        "$or" : [
+            {CategoryName: {$regex: (req.params.key, 'i')}},
+            {ProductName: {$regex: (req.params.key, 'i')}}
+        ]
+    })
+
+    if (!products) {
+        throw new ApiError(400, "products are not found")
+    }
+
+    else if (products.length > 0) {
+        res.status(201).json(
+            new ApiResponse(200, products, "products fetched successfully")
+        )
+    }
+
+    else {
+        res.status(201).json(
+            new ApiResponse(200, "currantly have not any products")
+        )
+    }
+})
 
 export {
     addProduct,
     getProduct,
     updateProductDetails,
-    deleteProduct
+    deleteProduct,
+    searchProduct
 }
