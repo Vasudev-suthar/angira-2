@@ -1,0 +1,43 @@
+import { Router } from "express";
+import { addProductOption, getProductOption, updateProductOptionDetails, deleteProductOption } from "../controllers/productOption.controller.js";
+import { upload } from "../middlewares/multer.middleware.js"
+
+const router = Router()
+
+router.route("/addproductoption").post(
+    upload.fields([
+        {
+            name: "Tops[0][topsimg]",
+            maxCount: 1
+        },
+        {
+            name: "Edges[0][edgesimg]",
+            maxCount: 1
+        },
+        {
+            name: "Finish[0][finishimg]",
+            maxCount: 1
+        },
+    ]),
+    addProductOption
+    )
+
+router.route("/getproductoption").get(getProductOption)
+router.route("/updateproductoption/:productOptionId").put( upload.fields([
+    {
+        name: "Tops[0][topsimg]",
+        maxCount: 1
+    },
+    {
+        name: "Edges[0][edgesimg]",
+        maxCount: 1
+    },
+    {
+        name: "Finish[0][finishimg]",
+        maxCount: 1
+    },
+]),updateProductOptionDetails)
+router.route("/deleteproductoption/:productOptionId").delete(deleteProductOption)
+
+
+export default router
