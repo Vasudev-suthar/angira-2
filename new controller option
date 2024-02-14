@@ -1,0 +1,230 @@
+import { asyncHandler } from "../utils/asyncHandler.js"
+import { ApiError } from "../utils/ApiError.js"
+import { Productoption } from "../models/productOption.model.js"
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js"
+import { ApiResponse } from "../utils/ApiResponse.js"
+import mongoose, { isValidObjectId } from "mongoose"
+
+
+const addProductOption = asyncHandler(async (req, res) => {
+
+    const { ProductName, Tops, Edges, Finish } = req.body
+
+    if (
+        (!ProductName || !Tops || !Edges || !Finish)
+    ) {
+        throw new ApiError(400, "All field are required")
+    }
+
+    const topsimgLocalPath = req.files?.['Tops[0][topsimg]'][0]?.path;
+    const edgesimgLocalPath = req.files?.['Edges[0][edgesimg]'][0]?.path;
+    const finishimgLocalPath = req.files?.['Finish[0][finishimg]'][0]?.path;
+
+    if (!topsimgLocalPath || !edgesimgLocalPath || !finishimgLocalPath) {
+        throw new ApiError(400, "image file is required")
+    }
+
+    const topImg = await uploadOnCloudinary(topsimgLocalPath)
+    const edgeImg = await uploadOnCloudinary(edgesimgLocalPath)
+    const finishImg = await uploadOnCloudinary(finishimgLocalPath)
+
+    if (!topImg || !edgeImg || !finishImg) {
+        throw new ApiError(400, "product image file is required")
+    }
+
+    const topname = Tops[0].topname
+    const edgename = Edges[0].edgename
+    const finishname = Finish[0].finishname
+
+    const productOption = await Productoption.create({
+        ProductName,
+        Tops: [
+            {
+                topname,
+                topsimg: {
+                    url: topImg.url,
+                    public_id: topImg.public_id
+                }
+            }
+        ],
+        Edges: [
+            {
+                edgename,
+                edgesimg: {
+                    url: edgeImg.url,
+                    public_id: edgeImg.public_id
+                }
+            }
+        ],
+        Finish: [
+            {
+                finishname,
+                finishimg: {
+                    url: finishImg.url,
+                    public_id: finishImg.public_id
+                }
+            }
+        ]
+    })
+
+    return res.status(201).json(
+        new ApiResponse(200, productOption, "Product added Successfully")
+    )
+
+})
+
+const getProductOption = asyncHandler(async (req, res) => {
+    const productOption = await Productoption.find()
+
+    if (!productOption) {
+        throw new ApiError(400, "product Options are not found")
+    }
+
+    else if (productOption.length > 0) {
+        res.status(201).json(
+            new ApiResponse(200, productOption, "product Options fetched successfully")
+        )
+    }
+
+    else {
+        res.status(201).json(
+            new ApiResponse(200, "currantly have not any product Options")
+        )
+    }
+})
+
+const updateProductOptionDetails = asyncHandler(async (req, res) => {
+
+    const { productOptionId } = req.params
+    const { ProductName, Tops, Edges, Finish } = req.body
+
+    if (!isValidObjectId(productOptionId)) {
+        throw new ApiError(400, "Invalid productOptionId");
+    }
+
+    if ((!ProductName || !Tops || !Edges || !Finish)) {
+        throw new ApiError(400, "ProductName and options are required");
+    }
+
+    const productOption = await Productoption.findById(productOptionId);
+
+    if (!productOption) {
+        throw new ApiError(404, "No product Option found");
+    }
+
+    // deleting old img and updating with new one
+    const topsimgtodelete = productOption.Tops[0].topsimg.public_id
+    const edgeimgtodelete = productOption.Edges[0].edgesimg.public_id
+    const finishimgtodelete = productOption.Finish[0].finishimg.public_id
+
+    const topsimgLocalPath = req.files?.['Tops[0][topsimg]'][0]?.path;
+    const edgesimgLocalPath = req.files?.['Edges[0][edgesimg]'][0]?.path;
+    const finishimgLocalPath = req.files?.['Finish[0][finishimg]'][0]?.path;
+
+    if (!topsimgLocalPath || !edgesimgLocalPath || !finishimgLocalPath) {
+        throw new ApiError(400, "product image is required");
+    }
+
+    const topImg = await uploadOnCloudinary(topsimgLocalPath)
+    const edgeImg = await uploadOnCloudinary(edgesimgLocalPath)
+    const finishImg = await uploadOnCloudinary(finishimgLocalPath)
+
+    if (!topImg || !edgeImg || !finishImg) {
+        throw new ApiError(400, "product image not found");
+    }
+
+    const topname = Tops[0].topname
+    const edgename = Edges[0].edgename
+    const finishname = Finish[0].finishname
+
+    const updateProductOption = await Productoption.findByIdAndUpdate(
+        productOptionId,
+        {
+            $set: {
+                ProductName,
+                Tops: [
+                    {
+                        topname,
+                        topsimg: {
+                            url: topImg.url,
+                            public_id: topImg.public_id
+                        }
+                    }
+                ],
+                Edges: [
+                    {
+                        edgename,
+                        edgesimg: {
+                            url: edgeImg.url,
+                            public_id: edgeImg.public_id
+                        }
+                    }
+                ],
+                Finish: [
+                    {
+                        finishname,
+                        finishimg: {
+                            url: finishImg.url,
+                            public_id: finishImg.public_id
+                        }
+                    }
+                ]
+            }
+        },
+        { new: true }
+    );
+
+    if (!updateProductOption) {
+        throw new ApiError(500, "Failed to update Product Option please try again");
+    }
+
+    if (updateProductOption) {
+        await deleteOnCloudinary(topsimgtodelete);
+        await deleteOnCloudinary(edgeimgtodelete);
+        await deleteOnCloudinary(finishimgtodelete);
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, updateProductOption, "Product updated successfully"));
+})
+
+const deleteProductOption = asyncHandler(async (req, res) => {
+
+    const { productOptionId } = req.params
+
+    if (!isValidObjectId(productOptionId)) {
+        throw new ApiError(400, "Invalid productId");
+    }
+
+    const productOption = await Productoption.findById(productOptionId);
+
+
+    if (!productOption) {
+        throw new ApiError(404, "No product found");
+    }
+
+
+    const deleteProduct = await Productoption.findByIdAndDelete(productOptionId);
+
+    if (!deleteProduct) {
+        throw new ApiError(500, "Failed to delete product please try again");
+    }
+
+    await deleteOnCloudinary(productOption.Tops[0].topsimg.public_id);
+    await deleteOnCloudinary(productOption.Edges[0].edgesimg.public_id);
+    await deleteOnCloudinary(productOption.Finish[0].finishimg.public_id);
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, deleteProduct, "Product deleted successfully"));
+})
+
+
+
+export {
+    addProductOption,
+    getProductOption,
+    updateProductOptionDetails,
+    deleteProductOption
+}
